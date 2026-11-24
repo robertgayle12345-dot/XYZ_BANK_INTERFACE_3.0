@@ -2,9 +2,65 @@
 #include <iostream>
 #include <iomanip>
 #include <limits>
+#include <fstream>
+#include <stdexcept>
+#include <string>
 #include "account.h"
 
 using namespace std;
+
+void saveTransactionReports(const SavingsAccount& savings,
+                            const ChequingAccount& chequing)
+{
+    string report =
+        "XYZ BANK TRANSACTION REPORT\n"
+        "===========================\n\n"
+        "SAVINGS ACCOUNT\n"
+        "---------------\n" + savings.report() +
+        "\nCHEQUING ACCOUNT\n"
+        "----------------\n" + chequing.report();
+
+    bool saved = false;
+
+    try
+    {
+        ofstream output("C:\\transactions.txt");
+        if (!output)
+        {
+            throw runtime_error("Unable to open C:\\transactions.txt");
+        }
+        output << report;
+        output.close();
+
+        cout << "\nTransaction report saved to C:\\transactions.txt\n";
+        saved = true;
+    }
+    catch (const exception& error)
+    {
+        cerr << "\nUnable to save transaction report: "
+             << error.what() << endl;
+    }
+
+    if (!saved)
+    {
+        try
+        {
+            ofstream fallback("transactions.txt");
+            if (!fallback)
+            {
+                throw runtime_error("Unable to open local transactions.txt");
+            }
+            fallback << report;
+            fallback.close();
+            cout << "\nTransaction report saved to the project folder as transactions.txt\n";
+        }
+        catch (const exception& error)
+        {
+            cerr << "\nUnable to save local fallback report: "
+                 << error.what() << endl;
+        }
+    }
+}
 
 // ==========================================
 // DISPLAY ATM MENU
@@ -19,9 +75,10 @@ void displayMenu()
     cout << " 2. Deposit Money\n";
     cout << " 3. Withdraw Money (Chequing applies fee)\n";
     cout << " 4. Calculate & Apply Interest (Savings)\n";
-    cout << " 5. Exit Program\n";
+    cout << " 5. View & Save Transaction Reports\n";
+    cout << " 6. Exit Program\n";
     cout << "============================================\n";
-    cout << "Select your transaction type (1-5): ";
+    cout << "Select your transaction type (1-6): ";
 }
 
 // ==========================================
@@ -74,14 +131,14 @@ int main()
             continue;
         }
 
-        if (choice == 5)
+        if (choice == 6)
         {
             cout << "\nThank you for banking with XYZ Bank.\n";
             cout << "Goodbye!\n";
             break;
         }
 
-        if (choice < 1 || choice > 5)
+        if (choice < 1 || choice > 6)
         {
             cout << "\nInvalid menu selection.\n";
             pauseAndContinue();
@@ -121,16 +178,27 @@ int main()
             // ==================================
 
             case 1:
-
-                if (accountType == 1)
+                try
                 {
-                    cout << "\nSavings Account Balance: $"
-                         << mySavings.getBalance() << endl;
+                    if (accountType == 1)
+                    {
+                        double balance = mySavings.getBalance();
+                        mySavings.addTransaction(Transaction(balance, "Balance Query"));
+                        cout << "\nSavings Account Balance: $"
+                             << balance << endl;
+                    }
+                    else
+                    {
+                        double balance = myChequing.getBalance();
+                        myChequing.addTransaction(Transaction(balance, "Balance Query"));
+                        cout << "\nChequing Account Balance: $"
+                             << balance << endl;
+                    }
                 }
-                else
+                catch (const exception& error)
                 {
-                    cout << "\nChequing Account Balance: $"
-                         << myChequing.getBalance() << endl;
+                    cerr << "\nUnable to check balance: "
+                         << error.what() << endl;
                 }
 
                 pauseAndContinue();
@@ -141,31 +209,42 @@ int main()
             // ==================================
 
             case 2:
-
-                cout << "\nEnter amount to deposit: $";
-
-                if (!(cin >> amount))
+                try
                 {
-                    cout << "Invalid amount entered.\n";
-                    cin.clear();
-                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-                    pauseAndContinue();
-                    break;
+                    cout << "\nEnter amount to deposit: $";
+                    if (!(cin >> amount))
+                    {
+                        cin.clear();
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        throw invalid_argument("Invalid amount entered.");
+                    }
+                    if (amount <= 0.0)
+                    {
+                        throw invalid_argument("Deposit amount must be greater than zero.");
+                    }
+
+                    if (accountType == 1)
+                    {
+                        if (!mySavings.deposit(amount))
+                        {
+                            throw runtime_error("Deposit could not be completed.");
+                        }
+                        cout << "Updated Savings Balance: $"
+                             << mySavings.getBalance() << endl;
+                    }
+                    else
+                    {
+                        if (!myChequing.deposit(amount))
+                        {
+                            throw runtime_error("Deposit could not be completed.");
+                        }
+                        cout << "Updated Chequing Balance: $"
+                             << myChequing.getBalance() << endl;
+                    }
                 }
-
-                if (accountType == 1)
+                catch (const exception& error)
                 {
-                    mySavings.deposit(amount);
-
-                    cout << "Updated Savings Balance: $"
-                         << mySavings.getBalance() << endl;
-                }
-                else
-                {
-                    myChequing.deposit(amount);
-
-                    cout << "Updated Chequing Balance: $"
-                         << myChequing.getBalance() << endl;
+                    cerr << "\nTransaction error: " << error.what() << endl;
                 }
 
                 pauseAndContinue();
@@ -176,31 +255,42 @@ int main()
             // ==================================
 
             case 3:
-
-                cout << "\nEnter amount to withdraw: $";
-
-                if (!(cin >> amount))
+                try
                 {
-                    cout << "Invalid amount entered.\n";
-                    cin.clear();
-                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-                    pauseAndContinue();
-                    break;
+                    cout << "\nEnter amount to withdraw: $";
+                    if (!(cin >> amount))
+                    {
+                        cin.clear();
+                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                        throw invalid_argument("Invalid amount entered.");
+                    }
+                    if (amount <= 0.0)
+                    {
+                        throw invalid_argument("Withdrawal amount must be greater than zero.");
+                    }
+
+                    if (accountType == 1)
+                    {
+                        if (!mySavings.withdraw(amount))
+                        {
+                            throw runtime_error("Insufficient savings funds.");
+                        }
+                        cout << "Updated Savings Balance: $"
+                             << mySavings.getBalance() << endl;
+                    }
+                    else
+                    {
+                        if (!myChequing.withdraw(amount))
+                        {
+                            throw runtime_error("Insufficient chequing funds or invalid withdrawal.");
+                        }
+                        cout << "Updated Chequing Balance: $"
+                             << myChequing.getBalance() << endl;
+                    }
                 }
-
-                if (accountType == 1)
+                catch (const exception& error)
                 {
-                    mySavings.withdraw(amount);
-
-                    cout << "Updated Savings Balance: $"
-                         << mySavings.getBalance() << endl;
-                }
-                else
-                {
-                    myChequing.withdraw(amount);
-
-                    cout << "Updated Chequing Balance: $"
-                         << myChequing.getBalance() << endl;
+                    cerr << "\nTransaction error: " << error.what() << endl;
                 }
 
                 pauseAndContinue();
@@ -212,18 +302,39 @@ int main()
 
             case 4:
             {
-                cout << "\n--- SAVINGS ACCOUNT INTEREST ---\n";
+                try
+                {
+                    cout << "\n--- SAVINGS ACCOUNT INTEREST ---\n";
 
-                double interest = mySavings.calcInterest();
+                    double interest = mySavings.calcInterest();
+                    cout << "Interest Earned: $" << interest << endl;
 
-                cout << "Interest Earned: $"
-                     << interest << endl;
+                    if (!mySavings.deposit(interest))
+                    {
+                        throw runtime_error("Interest could not be deposited.");
+                    }
+                    mySavings.addTransaction(
+                        Transaction(interest, "Interest Earned"));
 
-                mySavings.deposit(interest);
+                    cout << "New Savings Balance: $"
+                         << mySavings.getBalance() << endl;
+                }
+                catch (const exception& error)
+                {
+                    cerr << "\nInterest error: " << error.what() << endl;
+                }
 
-                cout << "New Savings Balance: $"
-                     << mySavings.getBalance() << endl;
+                pauseAndContinue();
+                break;
+            }
 
+            case 5:
+            {
+                cout << "\n--- SAVINGS ACCOUNT REPORT ---\n";
+                cout << mySavings.report();
+                cout << "\n--- CHEQUING ACCOUNT REPORT ---\n";
+                cout << myChequing.report();
+                saveTransactionReports(mySavings, myChequing);
                 pauseAndContinue();
                 break;
             }

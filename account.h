@@ -2,6 +2,29 @@
 #ifndef ACCOUNT_H
 #define ACCOUNT_H
 
+#include <stdexcept>
+#include <sstream>
+#include <string>
+#include <vector>
+
+// ==========================================
+// TRANSACTION CLASS
+// ==========================================
+
+class Transaction
+{
+private:
+    double amount;
+    std::string type;
+
+public:
+    Transaction(double transactionAmount, const std::string& transactionType);
+
+    double getAmount() const;
+    std::string getType() const;
+    std::string report() const;
+};
+
 // ==========================================
 // BASE CLASS: ACCOUNT
 // ==========================================
@@ -9,16 +32,21 @@
 class Account
 {
 protected:
-
     double balance;
 
-public:
+private:
+    std::vector<Transaction> log;
 
+public:
     // Constructor
     explicit Account(double initialBalance = 0.0);
 
     // Virtual Destructor
     virtual ~Account() = default;
+
+    // Add and report transactions
+    void addTransaction(const Transaction& transaction);
+    std::string report() const;
 
     // Set and Get Balance
     void setBalance(double b);
